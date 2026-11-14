@@ -3,7 +3,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 import base64
 import json
-import html
+import io
+from PIL import Image
 
 st.set_page_config(
     page_title="PhotoStream",
@@ -49,13 +50,21 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    # Convert uploaded images into browser-readable data
+    # Validate actual image files before embedding them in the slideshow.
     pictures = []
+    rejected_files = []
 
     for file in uploaded_files:
         image_bytes = file.getvalue()
-        encoded = base64.b64encode(image_bytes).decode("utf-8")
 
+        try:
+            with Image.open(io.BytesIO(image_bytes)) as image:
+                image.verify()
+        except Exception:
+            rejected_files.append(file.name)
+            continue
+
+        encoded = base64.b64encode(image_bytes).decode("utf-8")
         mime = file.type or "image/jpeg"
 
         pictures.append({
@@ -63,7 +72,18 @@ if uploaded_files:
             "src": f"data:{mime};base64,{encoded}"
         })
 
-    st.success(f"{len(pictures)} pictures uploaded!")
+    if rejected_files:
+        st.warning(
+            "Skipped invalid image files: "
+            + ", ".join(rejected_files)
+            + ". Please upload valid JPG, PNG, or WEBP images."
+        )
+
+    if not pictures:
+        st.error("No valid images were uploaded. Please try again with valid picture files.")
+        st.stop()
+
+    st.success(f"{len(pictures)} valid pictures uploaded!")
 
     st.header("Your Photo Gallery")
 
