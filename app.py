@@ -3,184 +3,218 @@ import streamlit as st
 import streamlit.components.v1 as components
 import base64
 import json
-import io
-from PIL import Image
 
 st.set_page_config(
     page_title="PhotoStream",
     page_icon="📸",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-st.title("📸 PhotoStream")
-st.subheader("Your personal photo slideshow")
+# ---------------- SIDEBAR ----------------
 
-st.write(
-    "Upload your favourite pictures and enjoy them "
-    "as an automatic slideshow."
-)
+with st.sidebar:
 
-# Sidebar settings
-st.sidebar.header("Slideshow Settings")
+    st.title("📸 PhotoStream")
 
-duration = st.sidebar.slider(
-    "Time per picture (seconds)",
-    min_value=1,
-    max_value=20,
-    value=4
-)
+    st.markdown("---")
 
-autoplay = st.sidebar.checkbox(
-    "Start slideshow automatically",
-    value=True
-)
+    st.subheader("📤 Upload Photos")
 
-loop = st.sidebar.checkbox(
-    "Repeat slideshow",
-    value=True
-)
+    uploaded_files = st.file_uploader(
+        "Choose multiple pictures",
+        type=["jpg", "jpeg", "png", "webp"],
+        accept_multiple_files=True,
+        key="photo_upload"
+    )
 
-# Upload pictures
-st.header("Upload your pictures")
+    st.markdown("---")
 
-uploaded_files = st.file_uploader(
-    "Select multiple pictures",
-    type=["jpg", "jpeg", "png", "webp"],
-    accept_multiple_files=True
-)
+    st.subheader("⚙️ Slideshow Settings")
+
+    duration = st.slider(
+        "Picture duration (seconds)",
+        min_value=1,
+        max_value=20,
+        value=4
+    )
+
+    autoplay = st.toggle(
+        "Auto Play",
+        value=True
+    )
+
+    loop = st.toggle(
+        "Repeat Slideshow",
+        value=True
+    )
+
+    st.markdown("---")
+
+    if uploaded_files:
+        st.success(
+            f"{len(uploaded_files)} photos uploaded"
+        )
+
+        with st.expander("Uploaded pictures"):
+            for index, file in enumerate(uploaded_files):
+                st.caption(f"{index + 1}. {file.name}")
+
+    else:
+        st.info("Upload pictures to start the slideshow.")
+
+# ---------------- MAIN WINDOW ----------------
 
 if uploaded_files:
-    # Validate actual image files before embedding them in the slideshow.
+
     pictures = []
-    rejected_files = []
 
     for file in uploaded_files:
-        image_bytes = file.getvalue()
 
-        try:
-            with Image.open(io.BytesIO(image_bytes)) as image:
-                image.verify()
-        except Exception:
-            rejected_files.append(file.name)
-            continue
-
-        encoded = base64.b64encode(image_bytes).decode("utf-8")
-        mime = file.type or "image/jpeg"
+        encoded = base64.b64encode(
+            file.getvalue()
+        ).decode("utf-8")
 
         pictures.append({
             "name": file.name,
-            "src": f"data:{mime};base64,{encoded}"
+            "src": f"data:{file.type};base64,{encoded}"
         })
 
-    if rejected_files:
-        st.warning(
-            "Skipped invalid image files: "
-            + ", ".join(rejected_files)
-            + ". Please upload valid JPG, PNG, or WEBP images."
-        )
-
-    if not pictures:
-        st.error("No valid images were uploaded. Please try again with valid picture files.")
-        st.stop()
-
-    st.success(f"{len(pictures)} valid pictures uploaded!")
-
-    st.header("Your Photo Gallery")
-
-    # Thumbnail gallery
-    columns = st.columns(4)
-
-    for index, picture in enumerate(pictures):
-        with columns[index % 4]:
-            st.image(
-                picture["src"],
-                caption=picture["name"],
-                use_container_width=True
-            )
-
-    st.divider()
-    st.header("▶ Photo Slideshow")
-
-    # Pass uploaded photos to the browser player
     pictures_json = json.dumps(pictures)
 
     player_html = """
     <!DOCTYPE html>
     <html>
     <head>
+
     <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #111827;
-            color: white;
-            text-align: center;
-        }
 
-        .player {
-            padding: 15px;
-        }
+    * {
+        box-sizing: border-box;
+    }
 
-        #photo {
-            width: 100%;
-            height: 430px;
-            object-fit: contain;
-            border-radius: 10px;
-            background: #000;
-        }
+    body {
+        margin: 0;
+        padding: 10px;
+        background: transparent;
+        color: white;
+        font-family: Arial, sans-serif;
+    }
 
-        #caption {
-            padding: 12px;
-            font-size: 16px;
+    .container {
+        width: 100%;
+        text-align: center;
+    }
+
+    .photo-area {
+        width: 100%;
+        height: 70vh;
+        min-height: 350px;
+        max-height: 650px;
+        background: #111827;
+        border-radius: 14px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+
+    #photo {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    #caption {
+        font-size: 18px;
+        margin-top: 15px;
+        font-weight: bold;
+    }
+
+    #counter {
+        color: #9ca3af;
+        margin-top: 8px;
+        font-size: 14px;
+    }
+
+    .controls {
+        margin-top: 22px;
+        display: flex;
+        justify-content: center;
+        gap: 15px;
+    }
+
+    button {
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 9px;
+        padding: 12px 22px;
+        cursor: pointer;
+        font-size: 15px;
+    }
+
+    button:hover {
+        background: #1d4ed8;
+    }
+
+    @media(max-width: 600px) {
+        .photo-area {
+            height: 55vh;
+            min-height: 250px;
         }
 
         button {
-            padding: 11px 18px;
-            margin: 5px;
-            border: none;
-            border-radius: 7px;
-            cursor: pointer;
-            background: #2563eb;
-            color: white;
-            font-size: 14px;
+            padding: 10px 13px;
         }
+    }
 
-        button:hover {
-            background: #1d4ed8;
-        }
-
-        #counter {
-            margin: 12px;
-            color: #d1d5db;
-        }
     </style>
+
     </head>
 
     <body>
-    <div class="player">
-        <img id="photo" src="" alt="Slideshow picture">
+
+    <div class="container">
+
+        <div class="photo-area">
+            <img id="photo" alt="Slideshow image">
+        </div>
+
         <div id="caption"></div>
+
         <div id="counter"></div>
 
-        <button onclick="previous()">⏮ Previous</button>
-        <button id="playButton" onclick="togglePlay()">⏸ Pause</button>
-        <button onclick="next()">Next ⏭</button>
+        <div class="controls">
+
+            <button onclick="previous()">
+                ⏮ Previous
+            </button>
+
+            <button id="playButton" onclick="togglePlay()">
+                ⏸ Pause
+            </button>
+
+            <button onclick="next()">
+                Next ⏭
+            </button>
+
+        </div>
+
     </div>
 
     <script>
-        const pictures = PICTURES || [];
-        const delay = DELAY * 1000;
-        const autoplay = AUTOPLAY;
-        const loop = LOOP;
+
+        const pictures = __PICTURES_JSON__;
+        const delay = __DELAY__ * 1000;
+        const autoplay = __AUTOPLAY__;
+        const loop = __LOOP__;
 
         let current = 0;
         let playing = autoplay;
         let timer = null;
 
         function display() {
-            if (!pictures.length) {
-                return;
-            }
 
             document.getElementById("photo").src =
                 pictures[current].src;
@@ -197,15 +231,17 @@ if uploaded_files:
         }
 
         function next() {
-            if (!pictures.length) {
-                return;
-            }
 
             if (current < pictures.length - 1) {
+
                 current++;
+
             } else if (loop) {
+
                 current = 0;
+
             } else {
+
                 playing = false;
             }
 
@@ -214,75 +250,96 @@ if uploaded_files:
         }
 
         function previous() {
-            if (!pictures.length) {
-                return;
-            }
 
-            current = (current - 1 + pictures.length)
-                % pictures.length;
+            if (current > 0) {
+                current--;
+            } else if (loop) {
+                current = pictures.length - 1;
+            }
 
             display();
             startTimer();
         }
 
         function togglePlay() {
-            if (!pictures.length) {
-                return;
-            }
 
             playing = !playing;
+
             display();
             startTimer();
         }
 
         function startTimer() {
+
             clearInterval(timer);
 
-            if (!pictures.length || !playing) {
-                return;
-            }
+            if (playing) {
 
-            timer = setInterval(() => {
-                if (current === pictures.length - 1 && !loop) {
-                    playing = false;
-                    clearInterval(timer);
+                timer = setInterval(function() {
+
+                    if (
+                        current === pictures.length - 1
+                        && !loop
+                    ) {
+
+                        playing = false;
+
+                        clearInterval(timer);
+
+                        display();
+
+                        return;
+                    }
+
+                    current = (current + 1) % pictures.length;
+
                     display();
-                    return;
-                }
 
-                current = (current + 1) % pictures.length;
-                display();
-            }, delay);
+                }, delay);
+            }
         }
 
         display();
         startTimer();
+
     </script>
+
     </body>
     </html>
     """
 
-    # Insert settings and uploaded pictures
     player_html = (
         player_html
-        .replace("PICTURES", pictures_json)
-        .replace("DELAY", str(duration))
-        .replace("AUTOPLAY", str(json.dumps(autoplay)))
-        .replace("LOOP", str(json.dumps(loop)))
+        .replace("__PICTURES_JSON__", pictures_json)
+        .replace("__DELAY__", str(duration))
+        .replace("__AUTOPLAY__", json.dumps(autoplay))
+        .replace("__LOOP__", json.dumps(loop))
     )
 
     components.html(
         player_html,
-        height=560,
+        height=850,
         scrolling=False
     )
 
 else:
-    st.info(
-        "Please upload multiple pictures to start "
-        "your PhotoStream slideshow."
+
+    st.markdown(
+        """
+        <div style="
+            height:75vh;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            text-align:center;
+            color:gray;
+        ">
+            <div>
+                <h1>📸 PhotoStream</h1>
+                <h3>Your slideshow awaits</h3>
+                <p>Upload pictures using the left sidebar.</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
-
-st.divider()
-
-st.caption("PhotoStream | Built with Python and Streamlit")
